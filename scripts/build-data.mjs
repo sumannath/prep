@@ -1,73 +1,116 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parquetReadObjects } from "hyparquet";
-import { NEETCODE_150, TOPICS } from "../src/data/neetcode150.ts";
+import { LISTS } from "../src/data/lists.ts";
+import {
+  SLUG_RE,
+  asDifficulty,
+  fetchLeetCodeQuestion,
+  loadRows,
+  withRetry,
+} from "./leetcode-dataset.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outPath = join(root, "public", "data", "problems.json");
+const outIndexPath = join(root, "public", "data", "problems-index.json");
 
-const PARQUET_URLS = [
-  "https://huggingface.co/datasets/newfacade/LeetCodeDataset/resolve/main/data/train-00000-of-00001.parquet",
-  "https://huggingface.co/api/datasets/newfacade/LeetCodeDataset/parquet/default/train/0.parquet",
-];
-
-async function downloadParquet() {
-  let lastError = null;
-  for (const url of PARQUET_URLS) {
-    try {
-      const res = await fetch(url, { redirect: "follow" });
-      if (!res.ok) {
-        lastError = new Error(`${url} -> ${res.status}`);
-        continue;
+async function fetchCatalogStatements(slugs, concurrency = 4) {
+  const bySlug = new Map();
+  let index = 0;
+  async function worker() {
+    while (index < slugs.length) {
+      const slug = slugs[index];
+      index += 1;
+      try {
+        const question = await withRetry(() => fetchLeetCodeQuestion(slug));
+        bySlug.set(slug, question);
+      } catch (err) {
+        console.warn(`LeetCode fetch failed for ${slug}: ${err?.message ?? err}`);
       }
-      return await res.arrayBuffer();
-    } catch (err) {
-      lastError = err;
+      await new Promise((resolve) => setTimeout(resolve, 120));
     }
   }
-  throw lastError ?? new Error("Failed to download LeetCodeDataset parquet");
-}
-
-function asDifficulty(value) {
-  if (value === "Easy" || value === "Medium" || value === "Hard") return value;
-  return "Unknown";
+  await Promise.all(Array.from({ length: Math.min(concurrency, slugs.length) }, worker));
+  return bySlug;
 }
 
 async function main() {
-  const buf = await downloadParquet();
-  const rows = await parquetReadObjects({ file: buf });
+  const rows = await loadRows();
+
   const byId = new Map();
   for (const row of rows) {
     const id = Number(row.question_id);
     if (!Number.isFinite(id)) continue;
-    byId.set(id, row);
+    if (!byId.has(id)) byId.set(id, row);
   }
 
-  const topicLabel = new Map(TOPICS.map((t) => [t.id, t.label]));
-  const problems = NEETCODE_150.map((entry) => {
-    const row = byId.get(entry.id);
-    const problemDescription = typeof row?.problem_description === "string" ? row.problem_description : "";
-    const starterCode = typeof row?.starter_code === "string" ? row.starter_code : "";
-    const difficulty = asDifficulty(row?.difficulty);
-    return {
-      id: entry.id,
-      slug: entry.slug,
-      title: entry.title,
-      difficulty,
-      topic: entry.topic,
-      topicLabel: topicLabel.get(entry.topic) ?? entry.topic,
-      problemDescription,
-      starterCode,
-      leetcodeUrl: `https://leetcode.com/problems/${entry.slug}/`,
-      hasDescription: problemDescription.length > 0,
-    };
-  });
+  const topicLabels = new Map();
+  for (const list of LISTS) {
+    for (const topic of list.topics) topicLabels.set(topic.id, topic.label);
+  }
+
+  const problems = [];
+  const leetCode = await fetchCatalogStatements(
+    LISTS.flatMap((list) => list.entries.map((entry) => entry.slug)).filter(
+      (slug, i, all) => all.indexOf(slug) === i,
+    ),
+  );
+  let fromLeetCode = 0;
+  for (const list of LISTS) {
+    for (const entry of list.entries) {
+      if (problems.some((p) => p.id === entry.id)) continue;
+      const row = byId.get(entry.id);
+      const lc = leetCode.get(entry.slug) ?? null;
+      if (lc) fromLeetCode += 1;
+      const problemDescription = lc?.problemDescription ?? (typeof row?.problem_description === "string" ? row.problem_description : "");
+      const starterCode = typeof row?.starter_code === "string" ? row.starter_code : "";
+      const difficulty = lc?.difficulty ?? asDifficulty(row?.difficulty);
+      problems.push({
+        id: entry.id,
+        slug: entry.slug,
+        title: entry.title,
+        difficulty,
+        problemDescription,
+        starterCode,
+        leetcodeUrl: `https://leetcode.com/problems/${entry.slug}/`,
+        hasDescription: problemDescription.length > 0,
+      });
+    }
+  }
+
+  const index = [];
+  const seen = new Set();
+  const titleById = new Map(problems.map((p) => [p.id, p.title]));
+  for (const row of rows) {
+    const id = Number(row.question_id);
+    const slug = typeof row.task_id === "string" ? row.task_id : "";
+    if (!Number.isFinite(id) || !SLUG_RE.test(slug) || seen.has(id)) continue;
+    seen.add(id);
+    index.push({
+      id,
+      slug,
+      title: titleById.get(id) ?? titleFromSlug(slug),
+      difficulty: asDifficulty(row?.difficulty),
+    });
+  }
+  index.sort((a, b) => a.id - b.id);
 
   await mkdir(dirname(outPath), { recursive: true });
   await writeFile(outPath, `${JSON.stringify(problems, null, 2)}\n`);
+  await writeFile(outIndexPath, `${JSON.stringify(index, null, 2)}\n`);
   const missing = problems.filter((p) => !p.hasDescription).length;
-  console.log(`Wrote ${problems.length} problems (${missing} missing HF descriptions) -> ${outPath}`);
+  console.log(
+    `Wrote ${problems.length} problems (${fromLeetCode} statements from LeetCode, ${missing} missing descriptions) -> ${outPath}`,
+  );
+  console.log(`Wrote ${index.length} index entries -> ${outIndexPath}`);
+  console.log(`Catalog problems covered by dataset rows: ${problems.filter((p) => byId.has(p.id)).length}/${problems.length}`);
+}
+
+function titleFromSlug(slug) {
+  return slug
+    .split("-")
+    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
+    .join(" ");
 }
 
 main().catch((err) => {

@@ -1,38 +1,38 @@
 import { Link, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Lesson } from "../components/Lesson";
+import { ProblemView } from "../components/ProblemView";
 import { TopBar } from "../components/TopBar";
+import { getList } from "../data/lists";
+import { getProblemBySlug, loadLesson } from "../lib/problems";
 import { getStudied, setStudied } from "../lib/progress";
-import { loadLesson, loadProblems, neighbors } from "../lib/problems";
 import type { Problem } from "../types";
 
 export function ProblemPage() {
-  const { slug = "" } = useParams();
+  const { listId = "", slug = "" } = useParams();
+  const list = getList(listId);
+  const entry = list?.entries.find((e) => e.slug === slug) ?? null;
+
   const [problem, setProblem] = useState<Problem | null>(null);
-  const [prev, setPrev] = useState<Problem | null>(null);
-  const [next, setNext] = useState<Problem | null>(null);
   const [lesson, setLesson] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [studied, setStudiedState] = useState(false);
 
   useEffect(() => {
+    if (!entry) return;
     let cancelled = false;
     setError(null);
-    setLesson(null);
     setProblem(null);
-    loadProblems()
-      .then((problems) => {
-        const found = neighbors(problems, slug);
-        if (!found) throw new Error("Problem not found");
+    setLesson(null);
+    getProblemBySlug(entry.slug)
+      .then((found) => {
         if (cancelled) return;
-        setProblem(found.problem);
-        setPrev(found.prev);
-        setNext(found.next);
-        setStudiedState(getStudied().has(found.problem.slug));
-        return loadLesson(found.problem.slug);
+        if (!found) throw new Error("Problem data missing — run npm run build:data first");
+        setProblem(found);
+        setStudiedState(getStudied().has(found.slug));
+        return loadLesson(found.id, found.slug);
       })
       .then((md) => {
-        if (!cancelled) setLesson(md ?? "");
+        if (!cancelled) setLesson(md ?? null);
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load");
@@ -40,22 +40,43 @@ export function ProblemPage() {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [entry, slug]);
 
-  if (error) {
+  if (!list) {
     return (
       <div className="page">
         <TopBar />
-        <p className="error">{error}</p>
+        <p className="error">Unknown list &quot;{listId}&quot;.</p>
+        <p>
+          <Link to="/lists">← All lists</Link>
+        </p>
       </div>
     );
   }
 
-  if (!problem) {
+  if (!entry) {
     return (
       <div className="page">
-        <TopBar />
-        <p className="muted">Loading…</p>
+        <TopBar>
+          <Link to={`/list/${list.id}`}>← {list.label}</Link>
+        </TopBar>
+        <p className="error">Problem &quot;{slug}&quot; is not part of {list.label}.</p>
+      </div>
+    );
+  }
+
+  const siblings = list.entries.filter((e) => e.topic === entry.topic);
+  const idx = siblings.findIndex((e) => e.slug === entry.slug);
+  const prev = idx > 0 ? siblings[idx - 1] : null;
+  const next = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null;
+
+  if (error) {
+    return (
+      <div className="page">
+        <TopBar>
+          <Link to={`/list/${list.id}?t=${entry.topic}`}>← {entry.topicLabel}</Link>
+        </TopBar>
+        <p className="error">{error}</p>
       </div>
     );
   }
@@ -63,54 +84,37 @@ export function ProblemPage() {
   return (
     <div className="page">
       <TopBar>
-        <Link to={`/topic/${problem.topic}`}>← {problem.topicLabel}</Link>
+        <Link to={`/list/${list.id}?t=${entry.topic}`}>← {entry.topicLabel}</Link>
       </TopBar>
 
       <article>
-        <div className="problem-hero">
-          <span className={`diff ${problem.difficulty.toLowerCase()}`}>{problem.difficulty}</span>
-          <h1>{problem.title}</h1>
-          <div className="meta-row">
-            <a className="btn" href={problem.leetcodeUrl} target="_blank" rel="noopener noreferrer">
-              Open on LeetCode
-            </a>
-            <label className="study-toggle">
-              <input
-                type="checkbox"
-                checked={studied}
-                onChange={(e) => {
-                  setStudied(problem.slug, e.target.checked);
-                  setStudiedState(e.target.checked);
-                }}
-              />
-              Mark studied
-            </label>
-          </div>
-        </div>
+        {problem ? (
+          <ProblemView
+            problem={problem}
+            lesson={lesson}
+            generateHint={`npm run generate:lessons -- --only ${problem.slug}`}
+            toolbar={
+              <label className="study-toggle">
+                <input
+                  type="checkbox"
+                  checked={studied}
+                  onChange={(e) => {
+                    setStudied(problem.slug, e.target.checked);
+                    setStudiedState(e.target.checked);
+                  }}
+                />
+                Mark studied
+              </label>
+            }
+          />
+        ) : (
+          <p className="muted">Loading…</p>
+        )}
 
         <nav className="pager">
-          {prev ? <Link to={`/problem/${prev.slug}`}>← {prev.title}</Link> : <span />}
-          {next ? <Link to={`/problem/${next.slug}`}>{next.title} →</Link> : <span />}
+          {prev ? <Link to={`/list/${list.id}/${prev.slug}`}>← {prev.title}</Link> : <span />}
+          {next ? <Link to={`/list/${list.id}/${next.slug}`}>{next.title} →</Link> : <span />}
         </nav>
-
-        {problem.hasDescription && (
-          <>
-            <h2>Problem</h2>
-            <pre className="statement">{problem.problemDescription}</pre>
-          </>
-        )}
-
-        <h2>Lesson</h2>
-        {lesson === null ? (
-          <p className="muted">Loading lesson…</p>
-        ) : lesson ? (
-          <Lesson markdown={lesson} />
-        ) : (
-          <p className="empty-lesson">
-            Generate this lesson with{" "}
-            <code>npm run generate:lessons -- --only {problem.slug}</code>
-          </p>
-        )}
       </article>
     </div>
   );

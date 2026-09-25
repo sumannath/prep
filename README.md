@@ -1,6 +1,6 @@
-# DSA Prep (NeetCode 150)
+# DSA Prep
 
-Static study site: topic clusters, problem statements from [LeetCodeDataset](https://huggingface.co/datasets/newfacade/LeetCodeDataset), lessons generated locally with OpenRouter (`z-ai/glm-5.3-flash`).
+Static study site: curated problem lists (NeetCode 150 and more), problem statements from [LeetCodeDataset](https://huggingface.co/datasets/newfacade/LeetCodeDataset), lessons generated locally with OpenRouter (`z-ai/glm-5.3-flash`).
 
 ## Local
 
@@ -10,12 +10,18 @@ npm install
 npm run build:data
 npm run generate:lessons          # skip existing; 6 parallel by default
 # npm run generate:lessons -- --only two-sum --force
+# any LeetCode id works, not just catalog problems:
+# npm run generate:lessons -- --only 424
 npm run dev                       # http://localhost:5173/#/
 ```
 
-- Home: `http://localhost:5173/#/`
-- Topic: `http://localhost:5173/#/topic/arrays-hashing`
-- Problem: `http://localhost:5173/#/problem/two-sum`
+- Home (option cards): `http://localhost:5173/#/`
+- See solution by LeetCode id: `http://localhost:5173/#/solve/424`
+- Lists: `http://localhost:5173/#/lists`
+- List (NeetCode 150): `http://localhost:5173/#/list/neetcode-150` (`?t=arrays-hashing` scrolls to a topic)
+- Problem in a list: `http://localhost:5173/#/list/neetcode-150/two-sum`
+
+Problems are stored keyed by LeetCode id (`public/data/problems.json` covers every list, `problems-index.json` maps every dataset id to its slug). If two lists share a problem, the app reads the same entry and reuses the cached lesson instead of fetching again.
 
 Generate lessons before you expect them on the problem page. Resume anytime; existing `content/lessons/*.md` files are skipped.
 

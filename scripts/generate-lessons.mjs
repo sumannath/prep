@@ -2,6 +2,13 @@ import { mkdir, readFile, writeFile, access } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lessonPrompt } from "../src/lib/prompt.ts";
+import {
+  SLUG_RE,
+  fetchLeetCodeQuestion,
+  loadRows,
+  rowToProblem,
+  withRetry as withLeetCodeRetry,
+} from "./leetcode-dataset.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -113,6 +120,20 @@ async function pool(items, concurrency, worker) {
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => run()));
 }
 
+async function findInDataset(only) {
+  const rows = await loadRows();
+  const numeric = /^\d+$/.test(only) ? Number(only) : null;
+  const row = rows.find((r) =>
+    numeric !== null
+      ? Number(r.question_id) === numeric
+      : r.task_id === only,
+  );
+  if (!row) return null;
+  const problem = rowToProblem(row);
+  if (!SLUG_RE.test(problem.slug)) return null;
+  return { ...problem, fromDataset: true };
+}
+
 async function main() {
   await loadEnv();
   const { only, concurrency, force } = parseArgs(process.argv.slice(2));
@@ -128,14 +149,23 @@ async function main() {
   if (!Array.isArray(parsed)) {
     throw new Error("problems.json is not an array");
   }
-  const slugOk = /^[a-z0-9-]+$/;
   const problems = parsed.filter(
-    (p) => p && typeof p.slug === "string" && slugOk.test(p.slug) && typeof p.title === "string",
+    (p) => p && typeof p.slug === "string" && SLUG_RE.test(p.slug) && typeof p.title === "string",
   );
   let targets = problems.filter((p) => p.hasDescription);
   if (only) {
     targets = targets.filter((p) => p.slug === only || String(p.id) === only);
-    if (targets.length === 0) {
+  }
+  if (only && targets.length === 0) {
+    const fromDataset = await findInDataset(only);
+    if (fromDataset) {
+      if (!fromDataset.hasDescription) {
+        console.error(`Problem ${only} has no description in the dataset`);
+        process.exit(1);
+      }
+      console.log(`Resolved ${only} from dataset: ${fromDataset.slug} (${fromDataset.title})`);
+      targets = [fromDataset];
+    } else {
       console.error(`No problem matched --only ${only}`);
       process.exit(1);
     }
@@ -147,22 +177,49 @@ async function main() {
   await mkdir(publicDir, { recursive: true });
 
   let done = 0;
+  let requested = 0;
+  let inFlight = 0;
   const total = targets.length;
   await pool(targets, concurrency, async (problem) => {
-    const dest = join(lessonDir, `${problem.slug}.md`);
-    const pub = join(publicDir, `${problem.slug}.md`);
+    const base = `${problem.id}-${problem.slug}`;
+    const dest = join(lessonDir, `${base}.md`);
+    const pub = join(publicDir, `${base}.md`);
+    const legacy = join(lessonDir, `${problem.slug}.md`);
     if (!force && !only && (await exists(dest))) {
       done += 1;
-      console.log(`skip ${done}/${total} ${problem.slug}`);
+      console.log(`skip ${done}/${total} ${base}`);
       if (!(await exists(pub))) await writeFile(pub, await readFile(dest));
       return;
     }
+    if (!force && !only && (await exists(legacy))) {
+      await writeFile(dest, await readFile(legacy));
+      await writeFile(pub, await readFile(legacy));
+      done += 1;
+      console.log(`migrated ${done}/${total} ${problem.slug}.md -> ${base}.md`);
+      return;
+    }
+    if (problem.fromDataset) {
+      try {
+        const lc = await withLeetCodeRetry(() => fetchLeetCodeQuestion(problem.slug));
+        if (lc) problem.problemDescription = lc.problemDescription;
+      } catch (err) {
+        console.warn(`LeetCode statement fetch failed for ${problem.slug}, using dataset text: ${err?.message ?? err}`);
+      }
+    }
+    const startedAt = Date.now();
+    requested += 1;
+    inFlight += 1;
+    console.log(
+      `call ${requested} ${base} | ${done}/${total} finished, ${inFlight} in flight`,
+    );
     const prompt = lessonPrompt(problem.title, problem.problemDescription);
     const markdown = await withRetry(() => callOpenRouter({ apiKey, model, prompt }));
     await writeFile(dest, `${markdown}\n`);
     await writeFile(pub, `${markdown}\n`);
+    inFlight -= 1;
     done += 1;
-    console.log(`done ${done}/${total} ${problem.slug}`);
+    const secs = Math.round((Date.now() - startedAt) / 1000);
+    console.log(`done ${done}/${total} ${base} (${secs}s, ${inFlight} still in flight)`);
   });
 }
 

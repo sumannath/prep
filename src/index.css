@@ -142,6 +142,11 @@ a:hover {
   font-size: 0.8rem;
 }
 
+button.btn {
+  cursor: pointer;
+  font-family: inherit;
+}
+
 .hero h1,
 .problem-hero h1,
 .markdown h1 {
@@ -159,6 +164,74 @@ a:hover {
 .hero p {
   margin: 0 0 1.5rem;
   color: var(--muted);
+}
+
+.option-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0 2rem;
+}
+
+.option-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 1.2rem 1.3rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 0.2s;
+}
+
+.option-card:hover {
+  text-decoration: none;
+  border-color: var(--muted);
+}
+
+.option-card h2 {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.3rem;
+  margin: 0;
+}
+
+.option-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.card-cta {
+  margin-top: auto;
+  padding-top: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--link);
+}
+
+.solve-form {
+  display: flex;
+  gap: 0.55rem;
+  margin: 0 0 2rem;
+}
+
+.solve-form input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 0.95rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.solve-form input:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
 }
 
 .muted {
