@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
+import { TopBar } from "../components/TopBar";
 import { TOPICS, type TopicId } from "../data/neetcode150";
 import { getStudied, setStudied } from "../lib/progress";
 import { byTopic, loadProblems } from "../lib/problems";
@@ -36,14 +37,11 @@ export function Home() {
 
   return (
     <div className="page">
-      <header className="topbar">
-        <Link to="/" className="brand">
-          Prep
-        </Link>
+      <TopBar>
         <p className="progress-chip">
           {studiedCount}/{problems.length || 150} studied
         </p>
-      </header>
+      </TopBar>
 
       <main>
       <div className="hero">

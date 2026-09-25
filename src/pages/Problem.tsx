@@ -1,7 +1,7 @@
 import { Link, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Lesson } from "../components/Lesson";
+import { TopBar } from "../components/TopBar";
 import { getStudied, setStudied } from "../lib/progress";
 import { loadLesson, loadProblems, neighbors } from "../lib/problems";
 import type { Problem } from "../types";
@@ -45,11 +45,7 @@ export function ProblemPage() {
   if (error) {
     return (
       <div className="page">
-        <header className="topbar">
-          <Link to="/" className="brand">
-            Prep
-          </Link>
-        </header>
+        <TopBar />
         <p className="error">{error}</p>
       </div>
     );
@@ -58,11 +54,7 @@ export function ProblemPage() {
   if (!problem) {
     return (
       <div className="page">
-        <header className="topbar">
-          <Link to="/" className="brand">
-            Prep
-          </Link>
-        </header>
+        <TopBar />
         <p className="muted">Loading…</p>
       </div>
     );
@@ -70,12 +62,9 @@ export function ProblemPage() {
 
   return (
     <div className="page">
-      <header className="topbar">
-        <Link to="/" className="brand">
-          Prep
-        </Link>
+      <TopBar>
         <Link to={`/topic/${problem.topic}`}>← {problem.topicLabel}</Link>
-      </header>
+      </TopBar>
 
       <article>
         <div className="problem-hero">
@@ -115,9 +104,7 @@ export function ProblemPage() {
         {lesson === null ? (
           <p className="muted">Loading lesson…</p>
         ) : lesson ? (
-          <div className="markdown">
-            <Markdown remarkPlugins={[remarkGfm]}>{lesson}</Markdown>
-          </div>
+          <Lesson markdown={lesson} />
         ) : (
           <p className="empty-lesson">
             Generate this lesson with{" "}

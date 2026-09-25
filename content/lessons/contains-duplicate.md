@@ -1,282 +1,208 @@
-# Contains Duplicate (LeetCode 217) — Complete Interview Prep Lesson
+# Contains Duplicate (LeetCode 217) — Complete Interview Lesson
 
-## 1. Problem Restatement (with precision)
+## 1. Restating the Problem Precisely
 
-**Formal restatement.** Given an integer array `nums` of length `n`, determine whether there exist **two distinct indices** `i ≠ j` such that `nums[i] == nums[j]`. Return `True` if such a pair exists, otherwise `False`.
+> **Given an integer array `nums`, return `true` if any value appears at least twice; return `false` if every element is distinct.**
 
-Precision points that matter in an interview:
+Before touching code, pin down exactly what's being asked — interviewers notice precision here:
 
-- The question is about **values**, compared across **different indices**. A duplicate means the *same value* sits at two (or more) *different* positions.
-- "At least twice" means a count of **≥ 2** is enough. We never need to know *which* value duplicates or *how many times* — only *whether* one exists.
-- The output is a **boolean only**. This allows early exit: the first duplicate found settles the answer.
-- Sanity check on the examples:
-  - `[1,2,3,1]` → indices 0 and 3 both hold value `1` → `True`
-  - `[1,2,3,4]` → every value occurs at exactly one index → `False`
-  - `[1,1,1,3,3,4,3,2,4,2]` → value `1` occurs at indices 0, 1, 2 → `True` (the extra occurrences of `3`, `4`, `2` are irrelevant)
+- **"Duplicate" is about values, verified through indices.** Formally: return `true` iff there exist two **distinct indices** `i ≠ j` with `nums[i] == nums[j]`. One element can never duplicate *itself* — it takes two positions holding the same value.
+- **"At least twice"** means a value occurring 3, 5, or 10 times still just yields one `true`. You can stop at the second sighting.
+- **The output is a boolean.** Not the repeated value, not the indices. Candidates who start returning the duplicate value have misread the signature.
+- **Order and position don't matter.** `[1,2,3,1]` is `true` even though the repeat is far apart; `[2,1,1]` and `[1,1,2]` are equally `true`.
+- Constraints guarantee `n ≥ 1`, so strictly there is no empty input — but saying "I'll assume non-empty per the constraints; if it could be empty, I'd return `false` (no value can repeat)" is a cheap, impressive clarification.
 
-## 2. Constraint Decoding
-
-Every constraint is a hint about the intended solution:
+## 2. Decoding the Constraints
 
 | Constraint | What it tells you |
 |---|---|
-| `1 <= nums.length <= 10^5` | `n` is large enough that **O(n²)** is dead: ~`n(n−1)/2 ≈ 5×10⁹` comparisons → TLE. Target **O(n log n)** or **O(n)**. Also `n ≥ 1`, so no empty input — but robust code should still handle `n = 0` gracefully (answer: `False`). |
-| `-10^9 <= nums[i] <= 10^9` | The **value domain** has `2×10⁹ + 1` possible values. A lookup array indexed by value would need ~2 GB and breaks on negative values. **Do not** use a value-indexed flags array — use a **hash set** (pays for what you've *seen*, not what *could exist*) or **sorting**. |
-| Values fit in 32-bit signed int | No arithmetic on values is needed, so no overflow concerns in any language. |
-| Return type is `bool` | Early exit is legal and desirable. |
-| Number of distinct values ≤ `n` ≤ 10⁵ | A set holds at most 10⁵ entries — a few MB. Memory is not a problem for hashing. |
+| `1 <= nums.length <= 10^5` | n = 100,000. A nested pair loop does up to `n(n−1)/2 ≈ 5×10⁹` comparisons on an all-distinct input — far too slow (seconds to minutes vs. the usual ~10⁸–10⁹ ops/sec budget). O(n²) is out; O(n) or O(n log n) is the target. |
+| `-10^9 <= nums[i] <= 10^9` | The **value range** spans about `2×10⁹ + 1` possible values, and **negatives are allowed**. A direct counting array indexed by value would need ~2.1 GB for one byte per value (or ~250 MB even as a bitset) — infeasible. This kills the "small value range" tricks and forces a hash-based or sort-based approach. |
+| `n ≥ 1` | Single-element arrays are legal and must return `false`. |
 
-**A reasoning note (pigeonhole):** if the value domain were *smaller* than `n` (e.g., values in `[0, 100]` with `n = 200`), a duplicate would be guaranteed with zero scanning. Here the domain (≈2×10⁹) dwarfs `n` (≤10⁵), so that shortcut can never fire — but articulating this shows you understand *why* hashing is needed.
+**Takeaway:** the two constraints together are the problem quietly telling you: *"don't compare all pairs, and don't index by value — hash it."*
 
-## 3. Baseline: Brute Force with a Worked Trace
+## 3. Brute Force: Compare Every Pair
 
-**Idea:** check every unordered pair of indices `(i, j)` with `i < j`.
+Check all index pairs `(i, j)` with `i < j`; if any pair has equal values, return `true`.
 
 ```python
-def contains_duplicate_bruteforce(nums: list[int]) -> bool:
+def containsDuplicate_bruteforce(nums: list[int]) -> bool:
     n = len(nums)
     for i in range(n):
-        for j in range(i + 1, n):   # j starts at i+1: never compare an index with itself
+        for j in range(i + 1, n):   # j starts at i+1: need two DISTINCT indices
             if nums[i] == nums[j]:
-                return True          # early exit on the first duplicate pair
+                return True
     return False
 ```
 
-**Worked trace on Example 1, `nums = [1, 2, 3, 1]`:**
+**Worked trace on Example 1, `nums = [1,2,3,1]`** (indices → values: 0→1, 1→2, 2→3, 3→1):
 
-| i | nums[i] | j | nums[j] | nums[i] == nums[j]? | Action |
-|---|---|---|---|---|---|
-| 0 | 1 | 1 | 2 | No | continue |
-| 0 | 1 | 2 | 3 | No | continue |
-| 0 | 1 | 3 | 1 | **Yes** | **return True** |
+| Pair (i, j) | nums[i] | nums[j] | Equal? |
+|---|---|---|---|
+| (0, 1) | 1 | 2 | no |
+| (0, 2) | 1 | 3 | no |
+| (0, 3) | 1 | **1** | **yes → return `true`** |
 
-Only 3 comparisons here because of the early exit.
+Only 3 of the 6 possible pairs were checked thanks to early exit — but that's luck. On an **all-distinct** array (Example 2 scaled to n = 10⁵), the loop completes all ~5×10⁹ comparisons.
 
-**Example 2, `nums = [1, 2, 3, 4]`** (worst case — answer is `False`): all `C(4,2) = 6` pairs must be checked — `(0,1), (0,2), (0,3), (1,2), (1,3), (2,3)` — all unequal → `False`.
+- **Time:** O(n²) worst case — TLE at this scale.
+- **Space:** O(1).
+- **Verdict:** correct but too slow. Say this out loud, then improve it — the brute force is your baseline, not your answer.
 
-**Complexity:** time **O(n²)** (exactly `n(n−1)/2` comparisons in the worst case), space **O(1)**.
+## 4. The Core Insight
 
-**Why it fails at scale:** at `n = 10⁵` that's **4,999,950,000** comparisons. In Python that's minutes; even in C it's seconds. Definite TLE. State this baseline in an interview, quantify *why* it's too slow, then improve it.
+Reframe the question. "Does any value appear twice?" is equivalent to:
 
-## 4. Stepping Stone: Sort + Adjacent Scan
+> **"As I scan left to right, do I ever encounter a value I have already seen in the prefix before me?"**
 
-**Insight:** after sorting, equal values become **adjacent**, so "a duplicate exists" ⇔ "some adjacent pair is equal."
+That is a **membership query over the set of previously-seen values** — and membership queries are exactly what a **hash set** answers in O(1) average time. So instead of re-scanning the prefix for each element (which is what the brute force does, implicitly), *remember* the prefix in a set.
+
+Secondary insight (for the space-constrained variant): **after sorting, any duplicate values become adjacent**, so a single linear scan of neighbors suffices.
+
+## 5. Optimal Approach
+
+### 5.1 One-Pass Hash Set (the interview default)
 
 ```python
-def contains_duplicate_sort(nums: list[int]) -> bool:
-    nums = sorted(nums)   # sorted() copies; use nums.sort() only if mutation is allowed
+def containsDuplicate(nums: list[int]) -> bool:
+    seen = set()
+    for x in nums:
+        if x in seen:      # check membership FIRST
+            return True
+        seen.add(x)        # then record
+    return False
+```
+
+**Invariant:** before processing index `i`, `seen` contains exactly the values at indices `0..i−1`. So `x in seen` is precisely "this value occurred at some earlier, distinct index."
+
+**Trace on Example 1, `nums = [1,2,3,1]`:**
+
+| Step | Index | x | `x in seen`? | Action | `seen` after |
+|---|---|---|---|---|---|
+| 1 | 0 | 1 | no | add | `{1}` |
+| 2 | 1 | 2 | no | add | `{1,2}` |
+| 3 | 2 | 3 | no | add | `{1,2,3}` |
+| 4 | 3 | 1 | **yes** | **return `true`** | — |
+
+**Trace on Example 2, `nums = [1,2,3,4]`:** all four steps answer "no"; `seen` grows to `{1,2,3,4}`; the loop ends → **return `false`**. This is the worst case for early exit — full work, but still just O(n).
+
+**Trace on Example 3, `nums = [1,1,1,3,3,4,3,2,4,2]`:**
+
+| Step | Index | x | `x in seen`? | Action | `seen` after |
+|---|---|---|---|---|---|
+| 1 | 0 | 1 | no | add | `{1}` |
+| 2 | 1 | 1 | **yes** | **return `true`** | — |
+
+Only 2 of 10 elements inspected. Early exit is why the loop version beats "clever" alternatives on duplicate-heavy inputs.
+
+- **Time:** O(n) average (each set op is O(1) average; a pathological all-colliding input degrades toward O(n) per op, which is why the claim is stated as *average*).
+- **Space:** O(n) for the set in the worst (all-distinct) case.
+
+### 5.2 The Pythonic One-Liner (know it, but name its weakness)
+
+```python
+def containsDuplicate_oneliner(nums: list[int]) -> bool:
+    return len(set(nums)) != len(nums)
+```
+
+A `set` keeps one copy per distinct value, so differing lengths ⇔ some value repeated. Correct and O(n)/O(n) — but `set(nums)` **builds the entire set before comparing**, so it never early-exits. Fine to mention; lead with the loop in interviews.
+
+### 5.3 Sorting Alternative (when memory, not time, is the constraint)
+
+```python
+def containsDuplicate_sort(nums: list[int]) -> bool:
+    nums = sorted(nums)            # copy: don't mutate caller's data unasked
     for i in range(1, len(nums)):
         if nums[i] == nums[i - 1]:
             return True
     return False
 ```
 
-**Trace on Example 3:** input `[1,1,1,3,3,4,3,2,4,2]` → sorted `[1,1,1,2,2,3,3,3,4,4]`.
-Scan: `i = 1`: `nums[1] = 1 == nums[0] = 1` → **True** immediately.
+Micro-trace on Example 1: sorted → `[1,1,2,3]`; at `i = 1`, `nums[1] == nums[0]` (1 == 1) → `true`. Example 2 sorts to `[1,2,3,4]`, no adjacent equality → `false`.
 
-**Complexity:** time **O(n log n)**; extra space **O(1)–O(n)** depending on the sort (Python's Timsort can use O(n) temporary buffer in the worst case; conceptually "in-place"). **Trade-off:** destroys input order, or costs an O(n) copy to preserve it.
+- **Time:** O(n log n). This is the best possible for comparison-based sorting, since distinguishing among the n! input orderings requires Ω(n log n) comparisons — each comparison splits the remaining possible orderings at most in half.
+- **Space:** O(1)–O(n) auxiliary depending on the sort implementation (Python's Timsort uses up to O(n); C++'s introsort is effectively in-place) — so qualify any "O(1) space" claim.
+- **Caveat:** it mutates or copies the input, and it must read/sort *everything* before it can answer.
 
-## 5. The Core Insight
+## 6. Lower Bound: Why O(n) Time Is Optimal
 
-Two equivalent framings — lead with the first in an interview:
+Any correct algorithm must examine every element in the worst case: if it skips even one position, an adversary can present two inputs identical everywhere except that unread position — one with a duplicate there, one without — and the algorithm, having seen identical data, must give the same (necessarily wrong) answer to one of them. Hence **Ω(n) reads are unavoidable**, and the hash-set solution is asymptotically optimal in time; the only remaining knob is space.
 
-1. **Prefix framing ("have I seen this before?"):** "Some value appears twice" ⇔ "while scanning left→right, at some point I encounter a value already present in the prefix I've scanned." A **hash set of seen values** answers *"is `x` in the prefix?"* in **O(1) expected time**, converting a global all-pairs question into a per-element O(1) check.
-2. **Counting framing (cardinality):** a duplicate exists ⇔ the number of distinct values is **less than** `n` ⇔ `len(set(nums)) < len(nums)`.
+## 7. Complexity Summary
 
-**Why hashing beats a value-indexed array here:** the domain is huge (≈2×10⁹ possible values) but the *occupancy* is at most 10⁵. A hash set stores only values actually seen; a flags array pays for the entire domain. This "store occupancy, not domain" idea recurs across dozens of problems.
-
-**Why a set and not a Counter:** we only need existence (count ≥ 2), and a set detects exactly that. A `Counter` is the right tool only when actual counts matter.
-
-## 6. Optimal Solution: One-Pass Hash Set with Early Exit
-
-**Algorithm:**
-1. Initialize `seen = set()` (empty).
-2. For each value `x` in `nums`, in order:
-   - If `x in seen` → a value occurs at two distinct indices → **return True**.
-   - Otherwise, add `x` to `seen`.
-3. If the loop completes with no hit → **return False**.
-
-```python
-from typing import List
-
-class Solution:
-    def containsDuplicate(self, nums: List[int]) -> bool:
-        seen = set()
-        for x in nums:
-            if x in seen:      # O(1) expected membership test
-                return True    # early exit: first duplicate settles the answer
-            seen.add(x)
-        return False
-```
-
-**Pythonic one-liner (know it, and know the trade-off):**
-
-```python
-class Solution:
-    def containsDuplicate(self, nums: List[int]) -> bool:
-        return len(set(nums)) < len(nums)
-```
-
-- The **loop version** exits at the first duplicate — better when duplicates appear early, and it works on **streams/iterators** that can't be materialized.
-- The **one-liner** always processes all `n` elements (no early exit), but the loop runs in C inside `set()`, so in CPython it's often the fastest wall-clock on typical tests.
-- In an interview: present the loop as *the algorithm*, mention the one-liner as the idiomatic equivalent, and explicitly call out the early-exit distinction. That nuance signals seniority.
-
-### Traces on the Official Examples
-
-**Example 1: `nums = [1, 2, 3, 1]`** → expected `True`
-
-| Step | i | x | seen (before) | x in seen? | Action | seen (after) |
-|---|---|---|---|---|---|---|
-| 1 | 0 | 1 | `{}` | No | add | `{1}` |
-| 2 | 1 | 2 | `{1}` | No | add | `{1, 2}` |
-| 3 | 2 | 3 | `{1, 2}` | No | add | `{1, 2, 3}` |
-| 4 | 3 | 1 | `{1, 2, 3}` | **Yes** | **return True** | — |
-
-**Example 2: `nums = [1, 2, 3, 4]`** → expected `False`
-
-| Step | i | x | x in seen? | Action |
+| Approach | Time | Space | Early exit? | Notes |
 |---|---|---|---|---|
-| 1 | 0 | 1 | No | add → `{1}` |
-| 2 | 1 | 2 | No | add → `{1, 2}` |
-| 3 | 2 | 3 | No | add → `{1, 2, 3}` |
-| 4 | 3 | 4 | No | add → `{1, 2, 3, 4}` |
+| All-pairs brute force | O(n²) | O(1) | Yes | ~5×10⁹ comparisons at n=10⁵ → TLE |
+| Counting array over value range | O(n + V), V≈2×10⁹ | O(V) ≈ 2 GB | Yes | Infeasible here; works only when values are small/bounded |
+| Sort + adjacent scan | O(n log n) | O(1)–O(n) aux (impl.-dependent) | Yes (at scan stage) | Mutates/copies input; no hash needed |
+| **Hash set, one pass** | **O(n) avg** | **O(n)** | **Yes** | **The expected answer** |
+| `len(set(nums)) != len(nums)` | O(n) | O(n) | No | Concise; always does full work |
 
-Loop ends with no hit → **return False**.
+## 8. Common Mistakes
 
-**Example 3: `nums = [1, 1, 1, 3, 3, 4, 3, 2, 4, 2]`** → expected `True`
-
-| Step | i | x | seen (before) | x in seen? | Action |
-|---|---|---|---|---|---|
-| 1 | 0 | 1 | `{}` | No | add → `{1}` |
-| 2 | 1 | 1 | `{1}` | **Yes** | **return True** |
-
-Early exit after **2 of 10** elements — the rest of the array is never touched. Note also that triple occurrences (`1` appears 3×) are irrelevant: the set fires at the *second* occurrence and stops.
-
-### Complexity of the Optimal Approach
-
-- **Time: O(n) expected.** Each element does one expected-O(1) set lookup and one O(1) insert. (Adversarial hash collisions can degrade individual operations, so the *precise* phrasing interviewers respect is "expected/amortized O(n)", not "worst case O(n)".)
-- **Space: O(n)** — at most `min(n, distinct values)` = 10⁵ entries.
-
-## 7. Complexity Summary Table
-
-| # | Approach | Time | Extra Space | Early exit? | Preserves input? | Verdict at `n = 10⁵` |
-|---|---|---|---|---|---|---|
-| 1 | Nested loops (all pairs) | O(n²) | O(1) | ✅ | ✅ | ❌ TLE (~5×10⁹ comparisons) |
-| 2 | Sort + adjacent scan | O(n log n) | O(1)–O(n) (sort-dependent) | ✅ (scan phase) | ❌ (or O(n) copy) | ✅ memory-friendly fallback |
-| 3 | Hash set, one pass | O(n) expected | O(n) | ✅ | ✅ | ✅ **canonical answer** |
-| 4 | `len(set(nums)) < len(nums)` | O(n) expected | O(n) | ❌ | ✅ | ✅ fastest constant factor in CPython |
-| 5 | `Counter` then check counts | O(n) | O(n) | ❌ | ✅ | Overkill here; right tool when counts are needed |
-
-## 8. Edge Cases (and how the optimal code behaves)
-
-| Case | Expected | Why the code handles it |
+| Mistake | Symptom / why it's wrong | Fix |
 |---|---|---|
-| `n = 1`, e.g. `[7]` | `False` | No pair of distinct indices exists; the loop adds `7` and ends → `False`. |
-| All equal, `[5,5,5,5]` | `True` | Fires at the second element via early exit. |
-| Duplicate far apart, `[1,2,3,…,1]` | `True` | Correct; worst case scans all `n` elements. |
-| Negatives, `[-1,-1]` or `[-10⁹, 10⁹]` | `True` / `False` | Hashing works for any int; no index math → no offset/overflow issues. |
-| Values at extremes `±10⁹` | — | Fine in Python (arbitrary precision) and in `HashSet<Integer>`/`unordered_set<int>` since we never do arithmetic. |
-| Empty array (outside stated constraints) | `False` | Both optimal versions return `False` naturally — mention this robustness unprompted. |
-| Value occurs 3+ times | `True` | Detected at the second occurrence; later occurrences never examined. |
+| Membership test against a **list** (`if x in seen_list`) | `list.__contains__` is a linear scan → O(n²) total; passes small tests, TLEs big ones | Use a `set` |
+| Brute-force inner loop starts at `j = i` (or compares `nums[i] == nums[i]`) | Every element "matches itself" → returns `true` for **every** input. Classic index/value confusion: a duplicate requires two *distinct* indices | `j` starts at `i + 1` |
+| **Adding before checking** (`seen.add(x)` then `if x in seen`) | `x` is trivially present the moment you inserted it → always `true` | Check membership first, then add |
+| Using `nums.count(x) > 1` in a loop | `count` is O(n) per call → O(n²) overall, disguised as clean Python | Same fix: hash set |
+| `nums.sort()` on data the caller owns | Mutates input order silently | `sorted(nums)` copy, or ask permission first |
+| Assuming small / non-negative values | Counting-array plans die on `[−10⁹, 10⁹]` (≈2×10⁹ slots, negatives) | Hash set is value-range-agnostic |
+| Returning the duplicate value or index | Signature returns `bool` | Track a boolean (or keep the hit value only if asked as a follow-up) |
 
-## 9. Common Mistakes (with buggy snippets)
+## 9. Language-Specific Gotchas (Python / Java / C++)
 
-**Mistake 1 — Self-comparison in the brute force.** Starting the inner loop at `0` makes `i == j` compare an index with itself:
-
-```python
-for i in range(n):
-    for j in range(n):            # BUG: j must start at i+1
-        if nums[i] == nums[j]:
-            return True           # always True at i == j — even for [1,2,3]!
-```
-
-The predicate requires **distinct indices** (`i ≠ j`).
-
-**Mistake 2 — Returning `False` too early.** "Not a duplicate *so far*" ≠ "no duplicate at all":
-
-```python
-for x in nums:
-    if x in seen:
-        return True
-    return False                  # BUG: exits after the very first element
-```
-
-The `return False` belongs **after** the loop.
-
-**Mistake 3 — Using a list as the "seen" container.**
-
-```python
-seen = []
-if x in seen:   # O(k) linear scan → total O(n²). The entire speedup dies here.
-```
-
-The win comes specifically from the **O(1) average** membership test of a `set`.
-
-**Mistake 4 — Value-indexed lookup array.** Allocating a ~2 GB flags array for the 2×10⁹ value domain, and crashing on negative values. The constraints were steering you toward hashing/sorting.
-
-**Mistake 5 — Index/value confusion.** Checking things like `nums[i] == i`, or "deduping indices." The condition is purely: ∃ `i ≠ j` with `nums[i] == nums[j]`. In `[0, 1, 1]`, indices 1 and 2 hold the same *value* → duplicate; in `[0, 1, 2]`, index 1 holding value `1` is not a duplicate.
-
-**Mistake 6 — Mutating input when forbidden.** `nums.sort()` destroys the caller's order. If the interviewer says "don't modify the input," use `sorted(nums)` and acknowledge the O(n) copy.
-
-**Mistake 7 — Imprecise complexity claims.** Saying the hash approach is "O(n) worst case" instead of **expected** O(n), or claiming O(1) space for the sort approach without noting Timsort's temporary buffer.
-
-## 10. Interview Talk Track & Likely Follow-ups
-
-**A compact script for the interview:**
-
-1. *Clarify:* "A value occurring at ≥ 2 distinct indices → `True`. May I modify the input? Is O(n) extra memory acceptable?"
-2. *Baseline:* "Check all pairs — O(n²) time, O(1) space. At `n = 10⁵` that's ~5×10⁹ comparisons — too slow."
-3. *Improve:* "Sorting makes duplicates adjacent → O(n log n), but it mutates input or costs a copy."
-4. *Optimal:* "One pass with a set of seen values: expected O(n) time, O(n) space, early exit on first duplicate."
-5. *Code it, trace Examples 1 and 3, state complexity, mention the one-liner trade-off.*
-
-**Follow-ups you should be ready for:**
-
-- **"Can you do O(1) space without modifying the input?"** → Not in general: element distinctness is Θ(n log n) in the comparison model. You must give up one restriction — sort (mutate) or accept O(n²).
-- **"What if the array is already sorted?"** → Adjacent scan: O(n) time, **O(1) space**, no hashing needed.
-- **"Return the duplicated value instead of a boolean?"** → Return `x` at the hit (or `None`/raise if absent):
-
-  ```python
-  def find_duplicate(nums: list[int]) -> int | None:
-      seen = set()
-      for x in nums:
-          if x in seen:
-              return x
-          seen.add(x)
-      return None
-  ```
-- **"Data is a stream / too big for RAM?"** → The set needs O(distinct) memory. Alternatives: external sort + adjacent scan, or a Bloom filter if *approximate* answers (rare false positives) are acceptable.
-- **"What if values were bounded, say 0–255?"** → Counting array of size 256, plus the **pigeonhole** shortcut: if `n > 256`, answer `True` without scanning.
-- **"Exactly twice? Majority element?"** → Now counts matter: `Counter`, or Boyer–Moore voting for the majority variant.
-
-## 11. Transferable Patterns
-
-1. **Seen-set membership ("have I seen x?")** — the fundamental one-pass pattern for pair-existence questions; the same idea powers Two Sum's complement lookup.
-2. **Frequency map (`Counter`)** — the generalization when the question shifts from "does it repeat?" to "how many times?" (anagrams, ransom notes, top-k frequent).
-3. **Sort → equal elements become adjacent** — converts "find an equal pair" into a linear adjacent scan (3Sum, dedup, merge intervals).
-4. **Bounded window over a seen structure** — keep only the last `k` elements in the set to handle distance-constrained duplicates (directly leads to Contains Duplicate II/III).
-5. **Pigeonhole principle** — if `n` exceeds the number of possible distinct values, a duplicate is guaranteed without any scan.
-6. **Early exit / streaming mindset** — return the moment the predicate is satisfied; prefer algorithms that work over iterators.
-
-## 12. Related Problems
-
-| Problem | Relationship | Key twist |
+| Language | Gotcha | Note |
 |---|---|---|
-| 219. Contains Duplicate II | Same seen-set + **sliding window of size k** | Requires `\|i − j\| ≤ k`; evict `nums[i-k]` each step |
-| 220. Contains Duplicate III | Window + **value buckets of width t** | Adds `\|nums[i] − nums[j]\| ≤ t` |
-| 287. Find the Duplicate Number | Values in `[1..n]`, find the dup with **O(1) space, no mutation** | Floyd's cycle detection |
-| 442. Find All Duplicates in an Array | Values in `[1..n]`, report **all** dups | In-place sign marking |
-| 268 / 448. Missing Number / Disappeared Numbers | The *complement* problem on bounded values | Index-as-hash tricks |
-| 136. Single Number | "Every element appears twice except one" | XOR pairing |
-| 242. Valid Anagram / 383. Ransom Note | Frequency counting mastery | `Counter` comparisons |
-| 128. Longest Consecutive Sequence | Set membership drives an O(n) solution | Only start counting at sequence heads |
-| 1. Two Sum | Same hash insight, complement instead of duplicate | Map value → index |
+| Python | `x in some_list` is O(n) | The #1 silent performance bug; `in` on a `set` is the O(1)-average op |
+| Python | `set.add()` returns `None` (in-place mutation) | Never write `seen = seen.add(x)` |
+| Java | `HashSet<Integer>` **autoboxes** every `int` (one allocation per insertion), and `contains` uses `equals`/`hashCode` | Fine at n=10⁵; but never compare boxed `Integer`s with `==` — the identity cache only spans −128..127, so `Integer a=1000, b=1000; a==b` is `false` |
+| Java | `ArrayList.contains` is an O(n) scan | Using it as the membership check silently yields O(n²) |
+| C++ | `std::unordered_set` is average O(1) but worst-case O(n) per op under collisions; `std::set` guarantees O(log n) | Either is acceptable; say "average O(1)" for the hash version |
+| C++ | `st.insert(x).second` is `false` when `x` was already present | Detects a duplicate with **one** hash lookup instead of `count` + `insert` |
 
-## 13. Cheat-Sheet Recap
+## 10. Tests to Propose Out Loud
 
-- **Predicate:** ∃ `i ≠ j` with `nums[i] == nums[j]` — values, distinct indices, boolean output.
-- **Constraints decode to:** O(n²) too slow at 10⁵; value domain (~2×10⁹) too big for lookup arrays → **hash set or sorting**.
-- **Canonical solution:** one pass, `seen` set, early exit → **O(n) expected time, O(n) space**.
-- **Memory-tight fallback:** sort + adjacent compare → **O(n log n) time**.
-- **Python:** know both the early-exit loop and `len(set(nums)) < len(nums)`, and articulate the trade-off.
-- **Interview gold:** say "expected O(n)" precisely, justify early exit, and know the Θ(n log n) element-distinctness bound for the no-space/no-mutation follow-up.
+State these before or right after coding — it signals rigor and often catches your own bugs:
+
+| # | Input | Expected | Why it earns its place |
+|---|---|---|---|
+| 1 | `[1,2,3,1]` | `true` | Official example; duplicate far from original |
+| 2 | `[1,2,3,4]` | `false` | Official; the all-distinct worst case |
+| 3 | `[1,1,1,3,3,4,3,2,4,2]` | `true` | Official; repeats + early exit at index 1 |
+| 4 | `[1]` | `false` | Minimum size; no pair `(i, j)` with `i ≠ j` exists |
+| 5 | `[1,1]` | `true` | Smallest possible duplicate; pins down the definition |
+| 6 | `[-1000000000, 1000000000, -1000000000]` | `true` | Negatives and extreme bounds — hashing must handle the full value range |
+| 7 | `[7,7,7,7]` | `true` | All-equal; "at least twice," not "exactly twice"; instant early exit |
+| 8 | Strictly increasing `1..100000` | `false` | Stress test: no early exit ever fires; checks you're not accidentally O(n²) |
+
+Also *say*: "Constraints give n ≥ 1; if an empty array were possible, I'd return `false`."
+
+## 11. Transferable Patterns & Related Problems
+
+- **The "seen set" pattern** — one pass, hash set of history, answer at first membership hit. This is *the* workhorse for: **Two Sum** (store complements/values seen), **Contains Duplicate II** (value → most recent index, check distance ≤ k), **Contains Duplicate III** (bucketing on value), **Longest Consecutive Sequence** (set membership for O(n) chain starts), **First Repeating Element**.
+- **Trade space for time** — replacing a repeated scan with O(n) memory that answers membership (or frequency, via `Counter`/`HashMap`) in O(1). Frequency-counting variant unlocks **Top K Frequent**, **Majority Element**, **Group Anagrams**.
+- **Sort-first pattern** — when O(1)-ish extra space matters or when sorting makes structure *adjacent*: duplicates become neighbors here; same idea powers **Merge Intervals**, dedup in **3Sum**, and **Missing Number**-style scans.
+- **Bounded-value tricks (contrast!)** — when values *are* small, a value-indexed array beats a hash set (e.g., **268 Missing Number**, **448 Find All Numbers Disappeared**). This problem's `[−10⁹, 10⁹]` range is exactly the case where that trick is *forbidden* — know when each applies.
+- **Directly related:** LC 219 (Contains Duplicate II), LC 220 (Contains Duplicate III), LC 287 (Find the Duplicate Number — same question under brutal space/structure constraints), LC 136 (Single Number).
+
+## 12. Full Interview Talk Track (script)
+
+> "Let me restate: given an array, return true if any *value* appears at least twice — meaning there are two distinct indices holding equal values — and false if all elements are distinct. The output is a boolean, and constraints are n up to 100k with values from −10⁹ to 10⁹.
+>
+> Brute force: compare every pair — O(n²) time, O(1) space. At n = 100k that's about five billion comparisons worst case, too slow, though it's my correctness baseline.
+>
+> The key insight: scanning left to right, 'is this a duplicate?' is exactly 'have I seen this value earlier?' That's a membership question, and a hash set answers membership in O(1) average. So: one pass, keep a `seen` set. For each element, if it's already in the set, return true immediately; otherwise add it. If the loop finishes, return false. O(n) average time, O(n) space, and it early-exits on the first repeat — on an input like `[1,1,1,…]` it inspects just two elements.
+>
+> This is time-optimal: any algorithm must read every element in the worst case, because a skipped position could be exactly where the duplicate hides. If the interviewer pushes on space, the alternative is sort-then-scan-adjacent — O(n log n) time, effectively in-place, at the cost of mutating the input.
+>
+> Tests I'd run: single element → false; `[1,1]` → true; negatives at ±10⁹ → true; all-equal array → true via instant early exit; and a strictly increasing 100k array → false, which is the performance worst case.
+>
+> Follow-ups I'm ready for: tiny value range → counting array; report the duplicate itself → keep the element that triggered the hit; distance-k variant → value-to-index map."
+
+## 13. Say It in 60 Seconds
+
+> "Contains Duplicate — return true if any value shows up twice, using two distinct indices. Brute force is every pair: O(n²), way too slow at 100k. The insight: scanning left to right, 'is this a duplicate?' is just 'have I seen this value before?' — and a hash set answers that in O(1) average. So, one pass: for each number, if it's already in my seen-set, return true on the spot; otherwise add it and keep going. Loop finishes, return false. That's O(n) average time, O(n) space, with early exit on the first repeat — and O(n) is optimal, since every element must be read in the worst case. If space is tight instead, sort and check neighbors: O(n log n), but it mutates the input. Tests I'd call out: single element → false; `[1,1]` → true; negatives at the ±10⁹ bounds; and a 100k all-distinct array to prove I'm not quadratic."
+
+*(~155 words — comfortably recitable in under a minute, and it hits restatement, brute force, insight, solution, complexity, optimality, alternative, and tests.)*
