@@ -73,11 +73,11 @@
     "id": 271,
     "slug": "encode-and-decode-strings",
     "title": "Encode and Decode Strings",
-    "difficulty": "Unknown",
-    "problemDescription": "",
+    "difficulty": "Medium",
+    "problemDescription": "Design an algorithm to encode a list of strings to a string. The encoded string is then sent over the network and is decoded back to the original list of strings.\n\nMachine 1 (sender) has the function:\n\nString encode(List<String> strs) {\n    // ... your code\n    return encoded_string;\n}\n\nMachine 2 (receiver) has the function:\n\nList<String> decode(String encoded_string) {\n    // ... your code\n    return decoded_strs;\n}\n\nSo Machine 1 does:\n\nString encoded_string = encode(strs);\n\nand Machine 2 does:\n\nList<String> decoded_strs = decode(encoded_string);\n\ndecoded_strs in Machine 2 should be the same as the input strs in Machine 1.\n\nImplement the encode and decode methods.\n\nExample 1:\n\nInput: strs = [\"Hello\",\"World\"]\nOutput: [\"Hello\",\"World\"]\n\nExample 2:\n\nInput: strs = [\"\"]\nOutput: [\"\"]\n\nConstraints:\n\n- 0 <= strs.length < 100\n\n- 0 <= strs[i].length < 200\n\n- strs[i] contains any possible characters out of 256 valid ASCII characters.",
     "starterCode": "",
     "leetcodeUrl": "https://leetcode.com/problems/encode-and-decode-strings/",
-    "hasDescription": false
+    "hasDescription": true
   },
   {
     "id": 128,
