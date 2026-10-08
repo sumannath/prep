@@ -1,9 +1,25 @@
-import { HashRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
+import { useEffect } from "react";
+import { HashRouter, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { Home } from "./pages/Home";
 import { Lists } from "./pages/Lists";
 import { ListView } from "./pages/ListView";
 import { ProblemPage } from "./pages/Problem";
 import { Solve } from "./pages/Solve";
+
+function PageViews() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const page_path = location.pathname + location.search;
+    window.gtag?.("event", "page_view", {
+      page_path,
+      page_location: window.location.href,
+      page_title: document.title,
+    });
+  }, [location]);
+
+  return null;
+}
 
 function TopicRedirect() {
   const { topicId = "" } = useParams();
@@ -18,6 +34,7 @@ function ProblemRedirect() {
 export default function App() {
   return (
     <HashRouter>
+      <PageViews />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/solve" element={<Solve />} />
