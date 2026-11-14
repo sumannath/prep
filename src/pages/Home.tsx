@@ -8,7 +8,7 @@ export function Home() {
       <main>
         <div className="hero">
           <h1>Prep</h1>
-          <p>Look up the solution for any LeetCode problem by id, or work through a curated problem list.</p>
+          <p>Look up the solution for any LeetCode problem by id, work through a curated problem list, or practise design-style coding rounds.</p>
         </div>
 
         <div className="option-cards">
@@ -21,6 +21,11 @@ export function Home() {
             <h2>Lists</h2>
             <p>Browse curated problem lists such as NeetCode 150, grouped by pattern with progress tracking. Shared problems are loaded once and reused.</p>
             <span className="card-cta">Browse lists →</span>
+          </Link>
+          <Link to="/coding" className="option-card">
+            <h2>Coding problems</h2>
+            <p>Code-design and data-structure round problems with hints, deep dives, tested solutions, interview walkthroughs and follow-ups.</p>
+            <span className="card-cta">Start practising →</span>
           </Link>
         </div>
       </main>

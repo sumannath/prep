@@ -20,6 +20,7 @@ npm run dev                       # http://localhost:5173/#/
 - Lists: `http://localhost:5173/#/lists`
 - List (NeetCode 150): `http://localhost:5173/#/list/neetcode-150` (`?t=arrays-hashing` scrolls to a topic)
 - Problem in a list: `http://localhost:5173/#/list/neetcode-150/two-sum`
+- Coding problems (design / data-structure rounds): `http://localhost:5173/#/coding` — content lives in `content/coding/*.md`, copied to `public/coding/` on dev/build
 
 Problems are stored keyed by LeetCode id (`public/data/problems.json` covers every list, `problems-index.json` maps every dataset id to its slug). If two lists share a problem, the app reads the same entry and reuses the cached lesson instead of fetching again.
 
