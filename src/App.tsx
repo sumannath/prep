@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 import { HashRouter, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
+import { Coding } from "./pages/Coding";
+import { CodingProblemPage, CodingRefresherPage } from "./pages/CodingProblem";
 import { Home } from "./pages/Home";
 import { Lists } from "./pages/Lists";
 import { ListView } from "./pages/ListView";
@@ -42,6 +44,9 @@ export default function App() {
         <Route path="/lists" element={<Lists />} />
         <Route path="/list/:listId" element={<ListView />} />
         <Route path="/list/:listId/:slug" element={<ProblemPage />} />
+        <Route path="/coding" element={<Coding />} />
+        <Route path="/coding/refresher" element={<CodingRefresherPage />} />
+        <Route path="/coding/:slug" element={<CodingProblemPage />} />
         <Route path="/topic/:topicId" element={<TopicRedirect />} />
         <Route path="/problem/:slug" element={<ProblemRedirect />} />
         <Route path="*" element={<Navigate to="/" replace />} />
