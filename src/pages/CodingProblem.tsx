@@ -8,6 +8,21 @@ import { getStudied, setStudied } from "../lib/progress";
 /** Sections shown before you ask for them; everything else stays folded so it can't spoil the attempt. */
 const OPEN_BY_DEFAULT = new Set(["Problem"]);
 
+function sectionId(title: string): string {
+  return `sec-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+}
+
+/** "Step 2 · Write the tests first" → "Write the tests first"; "Step 1 · Clarify (first ~5 min)" → "Clarify". */
+function stepLabel(title: string): string {
+  return title.split(" · ").slice(1).join(" · ").replace(/\s*\(.*\)\s*$/, "");
+}
+
+function openSection(id: string) {
+  const el = document.getElementById(id);
+  if (el instanceof HTMLDetailsElement) el.open = true;
+  el?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 export function CodingProblemPage() {
   const { slug = "" } = useParams();
   const idx = CODING_PROBLEMS.findIndex((p) => p.slug === slug);
@@ -49,6 +64,7 @@ export function CodingProblemPage() {
   const prev = idx > 0 ? CODING_PROBLEMS[idx - 1] : null;
   const next = idx < CODING_PROBLEMS.length - 1 ? CODING_PROBLEMS[idx + 1] : null;
   const sections = markdown ? splitSections(markdown) : [];
+  const steps = sections.filter((s) => s.title.startsWith("Step "));
 
   return (
     <div className="page">
@@ -84,17 +100,45 @@ export function CodingProblemPage() {
         {error && <p className="error">{error}</p>}
         {!error && markdown === null && <p className="muted">Loading…</p>}
 
-        {sections.map((section) => (
-          <details
-            // Re-mount on toggle-all so each section picks up the new default.
-            key={`${problem.slug}-${section.title}-${String(openAll)}`}
-            className="study-section"
-            open={openAll ?? OPEN_BY_DEFAULT.has(section.title)}
-          >
-            <summary>{section.title}</summary>
-            <Lesson markdown={section.body} />
-          </details>
-        ))}
+        {steps.length > 0 && (
+          <nav className="step-links" aria-label="Interview steps">
+            {steps.map((s, i) => (
+              <button key={s.title} type="button" onClick={() => openSection(sectionId(s.title))}>
+                <span className="step-num">{i + 1}</span>
+                {stepLabel(s.title)}
+              </button>
+            ))}
+          </nav>
+        )}
+
+        {sections.map((section) => {
+          const [main, ...note] = section.title.split(" · ");
+          const isStep = section.title.startsWith("Step ");
+          const isRevision = section.title.startsWith("60-second recap");
+          return (
+            <details
+              // Re-mount on toggle-all so each section picks up the new default.
+              key={`${problem.slug}-${section.title}-${String(openAll)}`}
+              id={sectionId(section.title)}
+              className={`study-section${isRevision ? " revision" : ""}`}
+              open={openAll ?? OPEN_BY_DEFAULT.has(section.title)}
+            >
+              <summary>
+                {isStep ? (
+                  <>
+                    <span className="step-kicker">{main}</span> {note.join(" · ")}
+                  </>
+                ) : (
+                  <>
+                    {main}
+                    {note.length > 0 && <span className="summary-note">{note.join(" · ")}</span>}
+                  </>
+                )}
+              </summary>
+              <Lesson markdown={section.body} />
+            </details>
+          );
+        })}
 
         <nav className="pager">
           {prev ? <Link to={`/coding/${prev.slug}`}>← {prev.title}</Link> : <span />}

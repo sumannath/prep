@@ -644,3 +644,94 @@ article > h2 {
 .study-section > .markdown {
   padding-bottom: 1rem;
 }
+
+.step-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 1.25rem 0 0;
+}
+
+.step-links button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.6rem 0.25rem 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.step-links button:hover {
+  border-color: var(--muted);
+}
+
+.step-num {
+  display: inline-grid;
+  place-items: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: var(--link);
+  color: var(--bg);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.step-kicker {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--link);
+  margin-right: 0.35rem;
+}
+
+.summary-note {
+  display: block;
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+
+.study-section.revision > summary {
+  color: var(--muted);
+}
+
+.study-section.revision[open] {
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 0 1rem;
+}
+
+.study-section .markdown blockquote {
+  background: var(--surface);
+  border-left: 3px solid var(--link);
+  border-radius: 0 6px 6px 0;
+  padding: 0.6rem 0.9rem;
+  color: var(--text);
+}
+
+/* Coding pages: first column holds prose (questions, terms), not short code labels. */
+.study-section .markdown td:first-child {
+  white-space: normal;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--text);
+  font-weight: 500;
+  min-width: 9rem;
+}
+
+.study-section .markdown h4 {
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 1.8rem 0 0.5rem;
+}
